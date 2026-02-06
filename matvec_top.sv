@@ -95,6 +95,9 @@ module matvec_top (
     reg  [63:0] write_data_reg;          // Latched row data for sequential write (unused now)
     reg  [3:0]  write_row_reg;           // Which row we're writing to
     
+    // Pre-registered bytes for stable data during writes
+    reg [7:0] write_bytes [0:7];
+    
     //=========================================================================
     // Memory Wrapper Instance (Provided)
     //=========================================================================
@@ -294,9 +297,6 @@ module matvec_top (
     // FIFO Write Logic (Sequential writes - 8 bytes per row)
     // Pre-register all 8 bytes, then write one per cycle
     //=========================================================================
-    
-    // Pre-registered bytes for stable data during writes
-    reg [7:0] write_bytes [0:7];
     
     always @(posedge clk or negedge rst_n) begin
         if (~rst_n) begin
