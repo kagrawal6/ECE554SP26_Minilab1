@@ -19,9 +19,9 @@ module mem_wrapper (
     // State machine for variable delay
     reg [2:0] state;
     localparam IDLE        = 3'b000,
-               ADDR_SETUP1 = 3'b001,  // Cycle 1: read_address just changed
-               ADDR_SETUP2 = 3'b010,  // Cycle 2: ROM sees new address
-               ADDR_SETUP3 = 3'b101,  // Cycle 3: ROM data becoming valid
+               ADDR_CAPTURE= 3'b110,  // Capture address into read_address register
+               ADDR_SETUP1 = 3'b001,  // Cycle 1: ROM sees new address on input, registers it
+               ADDR_SETUP2 = 3'b010,  // Cycle 2: ROM output valid
                WAIT        = 3'b011,
                RESPOND     = 3'b100;
 
@@ -47,21 +47,21 @@ module mem_wrapper (
                     readdatavalid <= 1'b0;
 						  waitrequest <= 1'b0;
                     if (read) begin
-                        read_address <= address; // Latch the address
                         waitrequest <= 1'b1;
-                        state <= ADDR_SETUP1; // Go to address setup state first
+                        state <= ADDR_CAPTURE;
                     end
                 end
+                ADDR_CAPTURE: begin
+                    // Capture the address this cycle - ROM will see it next cycle
+                    read_address <= address;
+                    state <= ADDR_SETUP1;
+                end
                 ADDR_SETUP1: begin
-                    // Cycle 1: read_address is now stable, ROM sees it on input
+                    // Cycle 1: read_address is stable, ROM registers it at end of this cycle
                     state <= ADDR_SETUP2;
                 end
                 ADDR_SETUP2: begin
-                    // Cycle 2: ROM registers the address internally
-                    state <= ADDR_SETUP3;
-                end
-                ADDR_SETUP3: begin
-                    // Cycle 3: ROM output is now valid, start delay
+                    // Cycle 2: ROM output is now valid, start delay
                     delay_counter <= 4'b1010; // Set a delay (10 cycles)
                     state <= WAIT;
                 end
