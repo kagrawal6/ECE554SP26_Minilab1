@@ -12,14 +12,16 @@ module mem_wrapper (
 );
 
     wire [63:0] mem_rdata;
+    reg [63:0] mem_rdata_captured;  // Captured ROM data for stable output
     reg [4:0] read_address;  // Latched address for the read operation
 	 reg [3:0] delay_counter; // Counter for variable delay
 
     // State machine for variable delay
     reg [2:0] state;
     localparam IDLE        = 3'b000,
-               ADDR_SETUP1 = 3'b001,  // Wait for read_address to be stable
-               ADDR_SETUP2 = 3'b010,  // Wait for ROM to register address
+               ADDR_SETUP1 = 3'b001,  // Cycle 1: read_address just changed
+               ADDR_SETUP2 = 3'b010,  // Cycle 2: ROM sees new address
+               ADDR_SETUP3 = 3'b101,  // Cycle 3: ROM data becoming valid
                WAIT        = 3'b011,
                RESPOND     = 3'b100;
 
@@ -38,6 +40,7 @@ module mem_wrapper (
 			   waitrequest <= 1'b0;
             delay_counter <= 4'b0;
             read_address <= 5'b0;  // Initialize read_address to avoid X
+            mem_rdata_captured <= 64'b0;
         end else begin
             case (state)
                 IDLE: begin
@@ -50,15 +53,21 @@ module mem_wrapper (
                     end
                 end
                 ADDR_SETUP1: begin
-                    // Cycle 1: read_address is now stable, ROM will register it
+                    // Cycle 1: read_address is now stable, ROM sees it on input
                     state <= ADDR_SETUP2;
                 end
                 ADDR_SETUP2: begin
-                    // Cycle 2: ROM has registered the address, data will be valid next cycle
+                    // Cycle 2: ROM registers the address internally
+                    state <= ADDR_SETUP3;
+                end
+                ADDR_SETUP3: begin
+                    // Cycle 3: ROM output is now valid, start delay
                     delay_counter <= 4'b1010; // Set a delay (10 cycles)
                     state <= WAIT;
                 end
                 WAIT: begin
+                    // Continuously capture ROM data while waiting
+                    mem_rdata_captured <= mem_rdata;
 					     if (delay_counter > 0) begin
                         delay_counter <= delay_counter - 1; // Decrement delay counter
                     end else begin
@@ -66,7 +75,7 @@ module mem_wrapper (
 						  end
                 end
                 RESPOND: begin
-                    readdata <= mem_rdata;
+                    readdata <= mem_rdata_captured;  // Use captured data for stability
                     readdatavalid <= 1'b1; // Indicate valid data
 					     waitrequest <= 1'b0;
                     state <= IDLE; // Return to IDLE state
