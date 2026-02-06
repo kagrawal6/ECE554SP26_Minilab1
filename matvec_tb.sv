@@ -230,13 +230,13 @@ module matvec_tb;
             for (int k = 0; k < 8; k++) begin
                 if (DUT.fifo_a_wren[k]) begin
                     $display("[Cycle %4d] FIFO_A[%0d] WRITE: data=0x%02h",
-                             cycle_count, k, DUT.write_byte);
+                             cycle_count, k, DUT.fifo_write_data);
                 end
             end
         end
         if (rst_n && DUT.fifo_b_wren) begin
             $display("[Cycle %4d] FIFO_B WRITE: data=0x%02h",
-                     cycle_count, DUT.write_byte);
+                     cycle_count, DUT.fifo_write_data);
         end
     end
     
