@@ -16,10 +16,11 @@ module mem_wrapper (
 	 reg [3:0] delay_counter; // Counter for variable delay
 
     // State machine for variable delay
-    reg [1:0] state;
-    localparam IDLE = 2'b00,
-               WAIT = 2'b01,
-               RESPOND = 2'b10;
+    reg [2:0] state;
+    localparam IDLE       = 3'b000,
+               ADDR_SETUP = 3'b001,  // New state: wait for ROM to register address
+               WAIT       = 3'b010,
+               RESPOND    = 3'b011;
 
     // Memory that stores 8x8 matrix
 	rom memory (
@@ -35,6 +36,7 @@ module mem_wrapper (
             readdata <= 64'b0;
 			   waitrequest <= 1'b0;
             delay_counter <= 4'b0;
+            read_address <= 5'b0;  // Initialize read_address to avoid X
         end else begin
             case (state)
                 IDLE: begin
@@ -42,10 +44,14 @@ module mem_wrapper (
 						  waitrequest <= 1'b0;
                     if (read) begin
                         read_address <= address; // Latch the address
-						      delay_counter <= 4'b1010; // Set a delay (e.g., 10 cycles)
                         waitrequest <= 1'b1;
-                        state <= WAIT; // Introduce a wait state
+                        state <= ADDR_SETUP; // Go to address setup state first
                     end
+                end
+                ADDR_SETUP: begin
+                    // Wait one cycle for ROM to register the new address
+                    delay_counter <= 4'b1010; // Set a delay (10 cycles)
+                    state <= WAIT;
                 end
                 WAIT: begin
 					     if (delay_counter > 0) begin
@@ -59,6 +65,9 @@ module mem_wrapper (
                     readdatavalid <= 1'b1; // Indicate valid data
 					     waitrequest <= 1'b0;
                     state <= IDLE; // Return to IDLE state
+                end
+                default: begin
+                    state <= IDLE;
                 end
             endcase
         end

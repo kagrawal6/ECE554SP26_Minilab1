@@ -229,18 +229,14 @@ module matvec_tb;
         if (rst_n && |DUT.fifo_a_wren) begin
             for (int k = 0; k < 8; k++) begin
                 if (DUT.fifo_a_wren[k]) begin
-                    $display("[Cycle %4d] FIFO_A[%0d] WRITE: data=0x%02h, idx=%0d",
-                             cycle_count, k,
-                             DUT.write_data_reg[(7-DUT.write_idx)*8 +: 8],
-                             DUT.write_idx);
+                    $display("[Cycle %4d] FIFO_A[%0d] WRITE: data=0x%02h",
+                             cycle_count, k, DUT.write_byte);
                 end
             end
         end
         if (rst_n && DUT.fifo_b_wren) begin
-            $display("[Cycle %4d] FIFO_B WRITE: data=0x%02h, idx=%0d",
-                     cycle_count,
-                     DUT.write_data_reg[(7-DUT.write_idx)*8 +: 8],
-                     DUT.write_idx);
+            $display("[Cycle %4d] FIFO_B WRITE: data=0x%02h",
+                     cycle_count, DUT.write_byte);
         end
     end
     

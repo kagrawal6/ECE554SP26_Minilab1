@@ -94,6 +94,7 @@ module matvec_top (
     reg         write_pending;           // Row data waiting to be written
     reg  [63:0] write_data_reg;          // Latched row data for sequential write
     reg  [3:0]  write_row_reg;           // Which row we're writing to
+    reg  [7:0]  write_byte;              // Current byte to write (registered for stability)
     
     //=========================================================================
     // Memory Wrapper Instance (Provided)
@@ -142,7 +143,7 @@ module matvec_top (
                 .rst_n  (rst_n),
                 .wren   (fifo_a_wren[i]),
                 .rden   (fifo_a_rden[i]),
-                .i_data (write_data_reg[(7-write_idx)*8 +: 8]),  // Current byte being written
+                .i_data (write_byte),  // Use registered byte for stable data
                 .o_data (fifo_a_out[i]),
                 .full   (fifo_a_full[i]),
                 .empty  (fifo_a_empty[i])
@@ -161,7 +162,7 @@ module matvec_top (
         .rst_n  (rst_n),
         .wren   (fifo_b_wren),
         .rden   (fifo_b_rden),
-        .i_data (write_data_reg[(7-write_idx)*8 +: 8]),
+        .i_data (write_byte),  // Use registered byte for stable data
         .o_data (fifo_b_out),
         .full   (fifo_b_full),
         .empty  (fifo_b_empty)
@@ -276,15 +277,22 @@ module matvec_top (
     
     //=========================================================================
     // FIFO Write Logic (Sequential writes - 8 bytes per row)
+    // Fixed: Register the byte FIRST, then assert wren on the NEXT cycle
     //=========================================================================
+    
+    // State for write sequencing
+    reg write_byte_ready;  // Indicates write_byte is valid and ready to write
+    
     always @(posedge clk or negedge rst_n) begin
         if (~rst_n) begin
-            write_pending  <= 1'b0;
-            write_idx      <= 3'd0;
-            write_data_reg <= 64'd0;
-            write_row_reg  <= 4'd0;
-            fifo_a_wren    <= 8'd0;
-            fifo_b_wren    <= 1'b0;
+            write_pending    <= 1'b0;
+            write_idx        <= 3'd0;
+            write_data_reg   <= 64'd0;
+            write_row_reg    <= 4'd0;
+            write_byte       <= 8'd0;
+            write_byte_ready <= 1'b0;
+            fifo_a_wren      <= 8'd0;
+            fifo_b_wren      <= 1'b0;
         end else begin
             // Default: no writes
             fifo_a_wren <= 8'd0;
@@ -296,6 +304,7 @@ module matvec_top (
                     write_pending  <= 1'b1;
                     write_idx      <= 3'd0;
                     write_row_reg  <= fetcher_current_row;
+                    write_byte_ready <= 1'b0;
                     // Pack the column data into 64-bit register
                     write_data_reg <= {fetcher_col_data[0], fetcher_col_data[1],
                                        fetcher_col_data[2], fetcher_col_data[3],
@@ -303,23 +312,37 @@ module matvec_top (
                                        fetcher_col_data[6], fetcher_col_data[7]};
                 end
                 
-                // Write bytes sequentially to appropriate FIFO
+                // Two-phase write: Phase 1 = prepare byte, Phase 2 = assert wren
                 if (write_pending) begin
-                    if (write_row_reg < 4'd8) begin
-                        // Writing to matrix A FIFO
-                        fifo_a_wren[write_row_reg[2:0]] <= 1'b1;
+                    if (!write_byte_ready) begin
+                        // Phase 1: Prepare the byte to write
+                        case (write_idx)
+                            3'd0: write_byte <= write_data_reg[63:56];
+                            3'd1: write_byte <= write_data_reg[55:48];
+                            3'd2: write_byte <= write_data_reg[47:40];
+                            3'd3: write_byte <= write_data_reg[39:32];
+                            3'd4: write_byte <= write_data_reg[31:24];
+                            3'd5: write_byte <= write_data_reg[23:16];
+                            3'd6: write_byte <= write_data_reg[15:8];
+                            3'd7: write_byte <= write_data_reg[7:0];
+                        endcase
+                        write_byte_ready <= 1'b1;
                     end else begin
-                        // Writing to vector B FIFO (row 8)
-                        fifo_b_wren <= 1'b1;
-                    end
-                    
-                    // Move to next byte
-                    if (write_idx == 3'd7) begin
-                        // Done with this row
-                        write_pending <= 1'b0;
-                        write_idx     <= 3'd0;
-                    end else begin
-                        write_idx <= write_idx + 1'b1;
+                        // Phase 2: Assert write enable (byte is now stable)
+                        if (write_row_reg < 4'd8) begin
+                            fifo_a_wren[write_row_reg[2:0]] <= 1'b1;
+                        end else begin
+                            fifo_b_wren <= 1'b1;
+                        end
+                        
+                        // Move to next byte
+                        write_byte_ready <= 1'b0;
+                        if (write_idx == 3'd7) begin
+                            write_pending <= 1'b0;
+                            write_idx     <= 3'd0;
+                        end else begin
+                            write_idx <= write_idx + 1'b1;
+                        end
                     end
                 end
             end
