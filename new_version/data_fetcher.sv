@@ -104,7 +104,7 @@ module data_fetcher (
     //  Avalon-MM master outputs
     // -------------------------------------------------------
     assign mem_address = {28'd0, row_cnt};
-    assign mem_read    = (state == READ_REQ) || (state == WAIT_DATA);
+    assign mem_read    = (state == READ_REQ);
 
     // -------------------------------------------------------
     //  FIFO write outputs
