@@ -74,13 +74,13 @@ module tb_fifo;
         // ------- Test 2: Write 8 values (fill FIFO) -------
         $display("\n[%0t] Test 2: Write %0d values", $time, DEPTH);
         for (i = 0; i < DEPTH; i++) begin
-            @(posedge clk);
             wren   = 1'b1;
             i_data = (i + 1) * 10;  // 10, 20, 30, ..., 80
+            @(posedge clk);
             $display("  Writing [%0d] = %0d | full=%b empty=%b", i, i_data, full, empty);
         end
-        @(posedge clk);
         wren = 1'b0;
+        @(posedge clk); // Let last write settle
 
         // ------- Test 3: Check full -------
         $display("\n[%0t] Test 3: Full after writing %0d values", $time, DEPTH);
@@ -94,11 +94,11 @@ module tb_fifo;
         $display("\n[%0t] Test 4: Read back all values", $time);
         for (i = 0; i < DEPTH; i++) begin
             $display("  Reading [%0d] = %0d | full=%b empty=%b", i, o_data, full, empty);
-            @(posedge clk);
             rden = 1'b1;
+            @(posedge clk);
         end
-        @(posedge clk);
         rden = 1'b0;
+        @(posedge clk); // Let last read settle
 
         // ------- Test 5: Check empty -------
         $display("\n[%0t] Test 5: Empty after reading all", $time);
